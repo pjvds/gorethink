@@ -2,7 +2,6 @@ package gorethink
 
 import (
 	"encoding/base64"
-
 	"reflect"
 
 	p "github.com/dancannon/gorethink/ql2"
@@ -68,9 +67,9 @@ func Expr(val interface{}) Term {
 		case reflect.Func:
 			return makeFunc(val)
 		case reflect.Struct, reflect.Map, reflect.Ptr:
-			data, err := encode(val)
+			raw, err := encode(val)
 
-			if err != nil || data == nil {
+			if err != nil || raw == nil || len(raw) == 0 {
 				return Term{
 					termType: p.Term_DATUM,
 					data:     nil,
@@ -78,7 +77,11 @@ func Expr(val interface{}) Term {
 				}
 			}
 
-			return Expr(data)
+			return Term{
+				termType: p.Term_DATUM,
+				raw:      raw,
+			}
+			// return Expr(data)
 
 		case reflect.Slice, reflect.Array:
 			// Check if slice is a byte slice

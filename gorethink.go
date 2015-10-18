@@ -1,11 +1,7 @@
 package gorethink
 
 import (
-	"reflect"
-
 	"github.com/Sirupsen/logrus"
-
-	"github.com/dancannon/gorethink/encoding"
 )
 
 var (
@@ -13,9 +9,6 @@ var (
 )
 
 func init() {
-	// Set encoding package
-	encoding.IgnoreType(reflect.TypeOf(Term{}))
-
 	Log = logrus.New()
 }
 

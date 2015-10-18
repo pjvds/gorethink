@@ -70,7 +70,7 @@ func (s *RethinkSuite) TestAdminWait(c *test.C) {
 	err = res.One(&response)
 	c.Assert(err, test.IsNil)
 
-	c.Assert(response["ready"].(float64) > 0, test.Equals, true)
+	c.Assert(response["ready"].(int64) > 0, test.Equals, true)
 }
 
 func (s *RethinkSuite) TestAdminWaitOpts(c *test.C) {
@@ -89,7 +89,7 @@ func (s *RethinkSuite) TestAdminWaitOpts(c *test.C) {
 	err = res.One(&response)
 	c.Assert(err, test.IsNil)
 
-	c.Assert(response["ready"].(float64) > 0, test.Equals, true)
+	c.Assert(response["ready"].(int64) > 0, test.Equals, true)
 }
 
 func (s *RethinkSuite) TestAdminStatus(c *test.C) {
@@ -106,5 +106,5 @@ func (s *RethinkSuite) TestAdminStatus(c *test.C) {
 	err = res.One(&response)
 	c.Assert(err, test.IsNil)
 
-	c.Assert(response["ready"], test.Equals, float64(1))
+	c.Assert(response["ready"], test.Equals, int64(1))
 }

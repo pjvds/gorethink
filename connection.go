@@ -9,23 +9,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dancannon/gorethink/types"
+
 	p "github.com/dancannon/gorethink/ql2"
 )
 
 const (
 	respHeaderLen = 12
 )
-
-// Response represents the raw response from a query, most of the time you
-// should instead use a Cursor when reading from the database.
-type Response struct {
-	Token     int64
-	Type      p.Response_ResponseType   `json:"t"`
-	Notes     []p.Response_ResponseNote `json:"n"`
-	Responses []json.RawMessage         `json:"r"`
-	Backtrace []interface{}             `json:"b"`
-	Profile   interface{}               `json:"p"`
-}
 
 // Connection is a connection to a rethinkdb database. Connection is not thread
 // safe and should only be accessed be a single goroutine
@@ -102,7 +93,7 @@ func (c *Connection) Close() error {
 // Cursor which should be used to view the query's response.
 //
 // This function is used internally by Run which should be used for most queries.
-func (c *Connection) Query(q Query) (*Response, *Cursor, error) {
+func (c *Connection) Query(q Query) (*types.Response, *Cursor, error) {
 	c.mu.Lock()
 	if c == nil {
 		c.mu.Unlock()
@@ -187,7 +178,7 @@ func (c *Connection) nextToken() int64 {
 
 // readResponse attempts to read a Response from the server, if no response
 // could be read then an error is returned.
-func (c *Connection) readResponse() (*Response, error) {
+func (c *Connection) readResponse() (*types.Response, error) {
 	// Set timeout
 	if c.opts.ReadTimeout == 0 {
 		c.conn.SetReadDeadline(time.Time{})
@@ -214,7 +205,7 @@ func (c *Connection) readResponse() (*Response, error) {
 
 	// Decode the response
 	var response = newCachedResponse()
-	if err := json.Unmarshal(b, response); err != nil {
+	if err := basicDecode(b, response); err != nil {
 		c.bad = true
 		return nil, RQLDriverError{err.Error()}
 	}
@@ -223,7 +214,7 @@ func (c *Connection) readResponse() (*Response, error) {
 	return response, nil
 }
 
-func (c *Connection) processResponse(q Query, response *Response) (*Response, *Cursor, error) {
+func (c *Connection) processResponse(q Query, response *types.Response) (*types.Response, *Cursor, error) {
 	switch response.Type {
 	case p.Response_CLIENT_ERROR:
 		return c.processErrorResponse(q, response, RQLClientError{rqlResponseError{response, q.Term}})
@@ -245,7 +236,7 @@ func (c *Connection) processResponse(q Query, response *Response) (*Response, *C
 	}
 }
 
-func (c *Connection) processErrorResponse(q Query, response *Response, err error) (*Response, *Cursor, error) {
+func (c *Connection) processErrorResponse(q Query, response *types.Response, err error) (*types.Response, *Cursor, error) {
 	c.mu.Lock()
 	cursor := c.cursors[response.Token]
 
@@ -255,7 +246,7 @@ func (c *Connection) processErrorResponse(q Query, response *Response, err error
 	return response, cursor, err
 }
 
-func (c *Connection) processAtomResponse(q Query, response *Response) (*Response, *Cursor, error) {
+func (c *Connection) processAtomResponse(q Query, response *types.Response) (*types.Response, *Cursor, error) {
 	// Create cursor
 	cursor := newCursor(c, "Cursor", response.Token, q.Term, q.Opts)
 	cursor.profile = response.Profile
@@ -265,7 +256,7 @@ func (c *Connection) processAtomResponse(q Query, response *Response) (*Response
 	return response, cursor, nil
 }
 
-func (c *Connection) processPartialResponse(q Query, response *Response) (*Response, *Cursor, error) {
+func (c *Connection) processPartialResponse(q Query, response *types.Response) (*types.Response, *Cursor, error) {
 	cursorType := "Cursor"
 	if len(response.Notes) > 0 {
 		switch response.Notes[0] {
@@ -298,7 +289,7 @@ func (c *Connection) processPartialResponse(q Query, response *Response) (*Respo
 	return response, cursor, nil
 }
 
-func (c *Connection) processSequenceResponse(q Query, response *Response) (*Response, *Cursor, error) {
+func (c *Connection) processSequenceResponse(q Query, response *types.Response) (*types.Response, *Cursor, error) {
 	c.mu.Lock()
 	cursor, ok := c.cursors[response.Token]
 	if !ok {
@@ -315,7 +306,7 @@ func (c *Connection) processSequenceResponse(q Query, response *Response) (*Resp
 	return response, cursor, nil
 }
 
-func (c *Connection) processWaitResponse(q Query, response *Response) (*Response, *Cursor, error) {
+func (c *Connection) processWaitResponse(q Query, response *types.Response) (*types.Response, *Cursor, error) {
 	c.mu.Lock()
 	delete(c.cursors, response.Token)
 	c.mu.Unlock()
@@ -323,19 +314,19 @@ func (c *Connection) processWaitResponse(q Query, response *Response) (*Response
 	return response, nil, nil
 }
 
-var responseCache = make(chan *Response, 16)
+var responseCache = make(chan *types.Response, 16)
 
-func newCachedResponse() *Response {
+func newCachedResponse() *types.Response {
 	select {
 	case r := <-responseCache:
 		return r
 	default:
-		return new(Response)
+		return new(types.Response)
 	}
 }
 
-func putResponse(r *Response) {
-	*r = Response{} // zero it
+func putResponse(r *types.Response) {
+	*r = types.Response{} // zero it
 	select {
 	case responseCache <- r:
 	default:

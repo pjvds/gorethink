@@ -5,8 +5,10 @@ import (
 	"errors"
 	"reflect"
 	"sync"
+	"unicode/utf8"
 
-	"github.com/dancannon/gorethink/encoding"
+	"github.com/dancannon/gorethink/types"
+
 	p "github.com/dancannon/gorethink/ql2"
 )
 
@@ -199,39 +201,36 @@ func (c *Cursor) loadNextLocked(dest interface{}) (bool, error) {
 
 		if c.buffer.Len() == 0 && c.responses.Len() > 0 {
 			if response, ok := c.responses.Pop().(json.RawMessage); ok {
-				var value interface{}
-				err := json.Unmarshal(response, &value)
-				if err != nil {
-					return false, err
-				}
+				// If response is an ATOM then try and convert to an array, we
+				// check if the response is an array by checking if the first
+				// character of the response is a '['
+				r, _ := utf8.DecodeRune(response)
+				if r == '[' && c.isAtom {
+					// Decode the response into a list of raw JSON messages
+					var items []json.RawMessage
+					err := decode(response, &items)
+					if err != nil {
+						return false, err
+					}
 
-				value, err = recursivelyConvertPseudotype(value, c.opts)
-				if err != nil {
-					return false, err
-				}
-
-				// If response is an ATOM then try and convert to an array
-				if data, ok := value.([]interface{}); ok && c.isAtom {
-					for _, v := range data {
+					for _, v := range items {
 						c.buffer.Push(v)
 					}
-				} else if value == nil {
-					c.buffer.Push(nil)
 				} else {
-					c.buffer.Push(value)
+					c.buffer.Push(response)
 				}
 			}
 		}
 
 		if c.buffer.Len() > 0 {
-			data := c.buffer.Pop()
+			if item, ok := c.buffer.Pop().(json.RawMessage); ok {
+				err := decode(item, dest)
+				if err != nil {
+					return false, err
+				}
 
-			err := encoding.Decode(dest, data)
-			if err != nil {
-				return false, err
+				return true, nil
 			}
-
-			return true, nil
 		}
 	}
 }
@@ -431,14 +430,14 @@ func (c *Cursor) handleErrorLocked(err error) error {
 }
 
 // extend adds the result of a continue query to the cursor.
-func (c *Cursor) extend(response *Response) {
+func (c *Cursor) extend(response *types.Response) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.extendLocked(response)
 }
 
-func (c *Cursor) extendLocked(response *Response) {
+func (c *Cursor) extendLocked(response *types.Response) {
 	for _, response := range response.Responses {
 		c.responses.Push(response)
 	}

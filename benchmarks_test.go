@@ -6,7 +6,70 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	p "github.com/dancannon/gorethink/ql2"
 )
+
+type document struct {
+	ID           string
+	Name         string
+	SubDocuments []document
+	Tags         []string
+	Author       user
+	Followers    []user
+	Meta         map[string]string
+}
+
+type user struct {
+	ID   string
+	Name string
+
+	UserData
+}
+
+type UserData struct {
+	Meta map[string]string
+}
+
+func BenchmarkEncode(b *testing.B) {
+	doc := document{
+		ID:   "id-1",
+		Name: "doc-1",
+		SubDocuments: []document{
+			document{ID: "id-2", Name: "doc-1-1"},
+			document{ID: "id-3", Name: "doc-1-2"},
+		},
+		Tags:   []string{"a", "b"},
+		Author: user{"user-1", "John Smith", UserData{map[string]string{"hello": "world"}}},
+		Followers: []user{
+			user{"user-2", "Theresa Nerger", UserData{}},
+			user{"user-3", "Emanuel Beier", UserData{}},
+		},
+		Meta: map[string]string{
+			"type": "document",
+		},
+	}
+
+	for n := 0; n < b.N; n++ {
+		t := Expr(doc)
+
+		builtTerm, err := t.build()
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		q := Query{
+			Type:      p.Query_START,
+			Term:      &t,
+			Opts:      map[string]interface{}{},
+			builtTerm: builtTerm,
+		}
+		_, err = q.encode()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
 
 func BenchmarkBatch200RandomWrites(b *testing.B) {
 

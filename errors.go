@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/dancannon/gorethink/types"
+
 	p "github.com/dancannon/gorethink/ql2"
 )
 
@@ -72,7 +74,7 @@ var ErrEmptyResult = errors.New("The result does not contain any more rows")
 // rqlResponseError is the base type for all errors, it formats both
 // for the response and query if set.
 type rqlResponseError struct {
-	response *Response
+	response *types.Response
 	term     *Term
 }
 

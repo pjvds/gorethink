@@ -6,10 +6,25 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/dancannon/gorethink/encoding"
+	"github.com/fatih/structs"
+	"github.com/ugorji/go/codec"
 
 	p "github.com/dancannon/gorethink/ql2"
 )
+
+var (
+	codecHandle      *codec.JsonHandle
+	basicCodecHandle *codec.JsonHandle
+)
+
+func init() {
+	codecHandle = new(codec.JsonHandle)
+	codecHandle.SignedInteger = true
+	codecHandle.MapType = reflect.TypeOf(map[string]interface{}{})
+	codecHandle.TypeInfos = codec.NewTypeInfos([]string{"gorethink"})
+
+	basicCodecHandle = new(codec.JsonHandle)
+}
 
 // Helper functions for constructing terms
 
@@ -160,15 +175,9 @@ func implVarScan(value Term) bool {
 
 // Convert an opt args struct to a map.
 func optArgsToMap(optArgs OptArgs) map[string]interface{} {
-	data, err := encode(optArgs)
+	structs.DefaultTagName = "gorethink"
 
-	if err == nil && data != nil {
-		if m, ok := data.(map[string]interface{}); ok {
-			return m
-		}
-	}
-
-	return map[string]interface{}{}
+	return structs.Map(optArgs)
 }
 
 // Convert a list into a slice of terms
@@ -247,15 +256,42 @@ func splitAddress(address string) (hostname string, port int) {
 	return
 }
 
-func encode(data interface{}) (interface{}, error) {
-	if _, ok := data.(Term); ok {
-		return data, nil
+func encode(data interface{}) ([]byte, error) {
+	var err error
+
+	if t, ok := data.(Term); ok {
+		data, err = t.build()
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	v, err := encoding.Encode(data)
-	if err != nil {
+	b := []byte{}
+	enc := codec.NewEncoderBytes(&b, codecHandle)
+
+	if err := enc.Encode(data); err != nil {
 		return nil, err
 	}
 
-	return v, nil
+	return b, nil
+}
+
+func decode(b []byte, data interface{}) error {
+	dec := codec.NewDecoderBytes(b, codecHandle)
+
+	if err := dec.Decode(data); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func basicDecode(b []byte, data interface{}) error {
+	dec := codec.NewDecoderBytes(b, basicCodecHandle)
+
+	if err := dec.Decode(data); err != nil {
+		return err
+	}
+
+	return nil
 }

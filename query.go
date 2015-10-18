@@ -1,9 +1,12 @@
 package gorethink
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/ugorji/go/codec"
 
 	p "github.com/dancannon/gorethink/ql2"
 )
@@ -34,6 +37,17 @@ func (q *Query) build() []interface{} {
 	return res
 }
 
+func (q *Query) encode() ([]byte, error) {
+	b := []byte{}
+	enc := codec.NewEncoderBytes(&b, codecHandle)
+
+	if err := enc.Encode(q.build()); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
 type termsList []Term
 type termsObj map[string]Term
 
@@ -47,6 +61,7 @@ type Term struct {
 	name     string
 	rootTerm bool
 	termType p.Term_TermType
+	raw      []byte
 	data     interface{}
 	args     []Term
 	optArgs  map[string]Term
@@ -64,6 +79,11 @@ func (t Term) build() (interface{}, error) {
 
 	switch t.termType {
 	case p.Term_DATUM:
+		if t.raw != nil {
+			raw := json.RawMessage(t.raw)
+			return &raw, nil
+		}
+
 		return t.data, nil
 	case p.Term_MAKE_OBJ:
 		res := map[string]interface{}{}
