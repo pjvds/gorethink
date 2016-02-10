@@ -83,6 +83,10 @@ type Optionals struct {
 
 	Mr map[string]interface{} `gorethink:"mr"`
 	Mo map[string]interface{} `gorethink:",omitempty"`
+
+	Frj string `gorethink:"Frj",json:"frj"`
+	Fj  string `json:"fj"`
+	Fe  string
 }
 
 var optionalsExpected = map[string]interface{}{
@@ -91,6 +95,9 @@ var optionalsExpected = map[string]interface{}{
 	"tr":        map[string]interface{}{"$reql_type$": "TIME", "epoch_time": 0, "timezone": "+00:00"},
 	"slr":       []interface{}{},
 	"mr":        map[string]interface{}{},
+	"Frj":       "",
+	"fj":        "",
+	"Fe":        "",
 }
 
 func TestOmitEmpty(t *testing.T) {
