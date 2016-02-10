@@ -8,14 +8,20 @@ import (
 	"unicode"
 )
 
-const TagName = "gorethink"
+var TagNames = []string{"gorethink", "json"}
 
 // tagOptions is the string following a comma in a struct field's
 // tag, or the empty string. It does not include the leading comma.
 type tagOptions string
 
 func getTag(sf reflect.StructField) string {
-	return sf.Tag.Get(TagName)
+	for _, name := range TagNames {
+		if tag := sf.Tag.Get(name); len(tag) > 0 {
+			return tag
+		}
+	}
+
+	return ""
 }
 
 // parseTag splits a struct field's tag into its name and
