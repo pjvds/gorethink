@@ -14,6 +14,9 @@ var TagNames = []string{"gorethink", "json"}
 // tag, or the empty string. It does not include the leading comma.
 type tagOptions string
 
+// getTag gets one of the supported the struct's field tag.
+// It first looks for gorethink, and if not found for json.
+// If none is found, emptry string it returned.
 func getTag(sf reflect.StructField) string {
 	for _, name := range TagNames {
 		if tag := sf.Tag.Get(name); len(tag) > 0 {
